@@ -1,42 +1,83 @@
-const pool = require('../db')
+const { rows } = require('pg/lib/defaults');
+const pool = require('../db');
 
-const getAllTasks = async (req, res) =>{
+const getAllTasks = async (req, res) => {
     try {
         const allTasks = await pool.query('SELECT * FROM task')
         res.json(allTasks.rows);
-        
+
     } catch (error) {
         console.log(error.message);
     }
 
 }
 
-const getTask = (req, res) =>{
-    console.log(req.params.id);
-    res.send('Retrieving a single task');
-}
+const getTask = async (req, res) => {
+    try {
+        const { id } = req.params;
 
-const createTask = async (req, res) =>{
-    const { title, description } = req.body
+        const result = await pool.query('SELECT * FROM task WHERE id = $1', [id]);
+
+        if (result.rows.length === 0)
+            return res.status(404).json({
+                message: 'Task not found'
+            });
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.log(error.message);
+    }
+};
+
+const createTask = async (req, res) => {
+    const { title, description } = req.body;
 
     try {
         const result = await pool.query('INSERT INTO task (title, description) VALUES ($1, $2) RETURNING *', [
-            title, 
+            title,
             description,
         ]);
-        res.json(result.rows[0])
+        res.json(result.rows[0]);
     } catch (error) {
-        res.json({ error: error.message })
+        res.json({ error: error.message });
     }
 }
 
-const deleteTask = (req, res) =>{
-    res.send('Deleting a task');
-}
+const deleteTask = async (req, res) => {
 
-const updateTask = (req, res) =>{
-    res.send('Updating a task');
-}
+    const { id } = req.params
+
+    /* Utiliza RETURNING * si queremos ver la tarea que eliminamos pero no es necesario
+    Si el rowcount es 0 quiere decir que no encontro nada */
+    const result = await pool.query('DELETE FROM task WHERE id = $1', [id]);
+
+    if (result.rowCount === 0)
+        return res.status(404).json({
+            message: 'Task not found',
+        });
+
+    return res.sendStatus(204); // No devuelve ningun mensaje
+};
+
+const updateTask = async (req, res) => {
+
+    const { id } = req.params;
+    const { title, description } = req.body;
+
+    const result = await pool.query(
+        'UPDATE task SET title = $1, description = $2 WHERE id = $3 RETURNING *', [
+        title, description, id
+    ]);
+
+    console.log(result);
+
+    if (result.rows.length === 0)
+        return res.status(404).json({
+            message: 'Task not found',
+        });
+
+    return res.json(result.rows[0]);
+};
 
 module.exports = {
     getAllTasks,
